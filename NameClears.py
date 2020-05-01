@@ -1,7 +1,7 @@
 # Modify parameters here #
 
 INIT_COUNT = 2254
-DEPTH = 14
+DEPTH = 50
 OUTPUTFILE = "NameClears_Output.txt"
 required = {"Dew", "Zephyr", "Kite", "Ground", "Granite", "Spritz", "Tonic", "Flash"}
 useful = {"Scorch", "Forge", "Torch", "Squall"}
@@ -194,7 +194,7 @@ def Check_GRN(g_count):
         element = grn()*4 >> 16
         index = grn()*7 >> 16
         name = Djinn[element][index]
-        if max(*DjinnCounts, DjinnCounts[element] + 1) - min(DjinnCounts) <= 1 and name not in CurrentDjinn:
+        if DjinnCounts[element] == min(DjinnCounts) and name not in CurrentDjinn:
             if grn()*100 >> 16 < DjinnPercents[element][index]:
                 CurrentDjinn.add(name)
                 DjinnCounts[element] += 1
