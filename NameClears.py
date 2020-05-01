@@ -1,7 +1,8 @@
 # Modify parameters here #
 
 INIT_COUNT = 2254
-DEPTH = 50
+DEPTH = 14
+OUTPUTFILE = "NameClears_Output.txt"
 required = {"Dew", "Zephyr", "Kite", "Ground", "Granite", "Spritz", "Tonic", "Flash"}
 useful = {"Scorch", "Forge", "Torch", "Squall"}
 min_elem_counts = {"Mercury": 5, "Jupiter": 5}
@@ -217,23 +218,31 @@ def getSuccesses(g_count, depth, path=""):
     test, new_count, found_useful = Check_GRN(g_count)
     if test:
         Successes.append([path, Get_Stats(g_count - 1126), g_count, found_useful])
-    if depth: 
+    if depth > 0: 
         getSuccesses(g_count + 1126, depth-1, path + "F")
         getSuccesses(new_count + 1126, depth-1, path + "I")
 
 # end #
 
 
-getSuccesses(INIT_COUNT, DEPTH)
-Successes = sorted(Successes, key=lambda x: x[2])
-stat_names = ["HP", "PP", "ATK", "DEF", "AGI", "LCK"]
+import traceback
 
-with open("untitled.txt", "w") as f:
-    for path, stats, g_count, found_useful in Successes:
-        s = path + ":\n"
-        for name, stat_list in stats_of_interest.items():
-            for stat in stat_list:
-                s += f"  {name[:2]} {stat_names[stat]}: {stats[name][stat]},"
-        f.write(s + "\n")
-        f.write(f"  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {found_useful}\n")
+try:
+    print("Calculating...")
+    getSuccesses(INIT_COUNT, DEPTH)
+    Successes = sorted(Successes, key=lambda x: x[2])
+    stat_names = ["HP", "PP", "ATK", "DEF", "AGI", "LCK"]
 
+    with open(OUTPUTFILE, "w") as f:
+        for path, stats, g_count, found_useful in Successes:
+            s = path + ":\n"
+            for name, stat_list in stats_of_interest.items():
+                for stat in stat_list:
+                    s += f"  {name[:2]} {stat_names[stat]}: {stats[name][stat]},"
+            f.write(s + "\n")
+            f.write(f"  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {found_useful}\n")
+
+except Exception as e:
+    print(traceback.format_exc())
+else:
+    print(f"Completed search at depth {DEPTH}\nOutputted successfully to {OUTPUTFILE}")
