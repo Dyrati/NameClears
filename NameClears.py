@@ -1,3 +1,15 @@
+# Modify parameters here #
+
+INIT_COUNT = 2254
+DEPTH = 50
+required = {"Dew", "Zephyr", "Kite", "Ground", "Granite", "Spritz", "Tonic", "Flash"}
+useful = {"Scorch", "Forge", "Torch", "Squall"}
+min_elem_counts = {"Mercury": 5, "Jupiter": 5}
+stats_of_interest = {"Isaac": [2], "Ivan": [4], "Felix": [2, 4], "Jenna": [2, 4], "Sheba": [1, 4]}
+
+# end #
+
+
 def constructRNlist(multiplier, increment):
     multList = [multiplier]
     incList = [increment]
@@ -147,6 +159,8 @@ Djinn = [
     ["Gust","Breeze","Zephyr","Smog","Kite","Squall","Luff","Breath","Blitz","Ether","Waft","Haze","Wheeze","Aroma","Whorl","Gasp","Lull","Gale",],
 ]
 
+Elements = {"Venus":0, "Mercury":1, "Mars":2, "Jupiter":3}
+
 
 # $080B1290: +14 per element, +2 per Djinn index
 DjinnPercents = [
@@ -156,16 +170,14 @@ DjinnPercents = [
     [50, 50, 70, 50, 20, 70, 70],
 ]
 
-required = {"Dew", "Zephyr", "Kite", "Ground", "Granite", "Spritz", "Tonic", "Flash"}
-useful = {"Scorch", "Forge", "Torch", "Squall"}
-
 
 def Check_GRN(g_count):
-    global Djinn, DjinnPercents, required, useful
+    global Djinn, DjinnPercents, Elements, required, useful, min_elem_counts
 
     g_value = findValue(g_count) & 0xFFFFFF
     CurrentDjinn = {"Flint", "Fizz"}
-    required_count = len(required)
+    required_len = len(required)
+    other_tests = True
     found_useful = set()
 
     DjinnCounts = [1,1,0,0]
@@ -186,41 +198,42 @@ def Check_GRN(g_count):
                 CurrentDjinn.add(name)
                 DjinnCounts[element] += 1
                 djinn_to_add -= 1
-                if name in required: required_count -= 1
+                if name in required: required_len -= 1
                 if name in useful: found_useful.add(name)
 
-    if DjinnCounts[1] >= 5 and DjinnCounts[3] >= 5 and not required_count: return True, g_count, found_useful
+    for k,v in min_elem_counts.items(): other_tests = other_tests & (DjinnCounts[Elements[k]] >= v)
+    if other_tests and not required_len: return True, g_count, found_useful
     else: return False, g_count, found_useful
 
 
 
-Paths = {}
+Successes = []
 Checked = set()
 
-def getSuccessfulGRNs(g_count, depth, path=""):
-    global Paths, Checked
+def getSuccesses(g_count, depth, path=""):
+    global Successes, Checked
     if g_count in Checked: return
     else: Checked.add(g_count)
     test, new_count, found_useful = Check_GRN(g_count)
     if test:
-        Paths[path] = [Get_Stats(g_count - 1126), g_count, found_useful]
+        Successes.append([path, Get_Stats(g_count - 1126), g_count, found_useful])
     if depth: 
-        getSuccessfulGRNs(g_count + 1126, depth-1, path + "F")
-        getSuccessfulGRNs(new_count + 1126, depth-1, path + "I")
+        getSuccesses(g_count + 1126, depth-1, path + "F")
+        getSuccesses(new_count + 1126, depth-1, path + "I")
 
 # end #
 
 
-getSuccessfulGRNs(2254, 20)
-
-stats_of_interest = {"Isaac": [2], "Ivan": [4], "Felix": [2, 4], "Jenna": [2, 4], "Sheba": [1, 4]}
+getSuccesses(INIT_COUNT, DEPTH)
+Successes = sorted(Successes, key=lambda x: x[2])
 stat_names = ["HP", "PP", "ATK", "DEF", "AGI", "LCK"]
+
 with open("untitled.txt", "w") as f:
-    for k, v in Paths.items():
-        s = k + ":\n"
+    for path, stats, g_count, found_useful in Successes:
+        s = path + ":\n"
         for name, stat_list in stats_of_interest.items():
             for stat in stat_list:
-                s += f"  {name[:2]} {stat_names[stat]}: {v[0][name][stat]},"
+                s += f"  {name[:2]} {stat_names[stat]}: {stats[name][stat]},"
         f.write(s + "\n")
-        f.write(f"  GRN: 0x{findValue(v[1]):0>8X}  Gcount: {v[1]}\n  Other: {v[2]}\n")
+        f.write(f"  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {found_useful}\n")
 
