@@ -1,7 +1,7 @@
 # Modify parameters here #
 
 INIT_COUNT = 2254
-DEPTH = 50
+DEPTH = 30
 OUTPUTFILE = "NameClears_Output.txt"
 required = {"Dew", "Zephyr", "Kite", "Ground", "Granite", "Spritz", "Tonic", "Flash"}
 useful = {"Scorch", "Forge", "Torch", "Squall"}
@@ -31,7 +31,7 @@ def findCount(value):
         if value & 2**i:
             value = (value*multipliers[i] + increments[i]) & 0xFFFFFFFF
             advances += 2**i
-    return -advances % 2**32
+    return -advances & 0xFFFFFFFF
 
 multipliers,increments = constructRNlist(0x41c64e6d, 0x3039)
 
@@ -46,7 +46,7 @@ Goal_Values = {
         [6, 38, 69, 102, 134, 166],
         [8, 86, 163, 241, 318, 396],
         [3, 3, 3, 3, 3, 3],
-    ],
+        ],
     "Garet": [
         [33, 191, 351, 510, 670, 830],
         [18, 76, 124, 162, 200, 238],
@@ -54,7 +54,7 @@ Goal_Values = {
         [8, 41, 75, 110, 144, 179],
         [6, 76, 144, 212, 281, 349],
         [2, 2, 2, 2, 2, 2],
-    ],
+        ],
     "Ivan": [
         [28, 166, 304, 442, 581, 719],
         [24, 92, 150, 196, 242, 288],
@@ -62,7 +62,7 @@ Goal_Values = {
         [4, 35, 65, 95, 124, 155],
         [11, 91, 173, 255, 337, 419],
         [4, 4, 4, 4, 4, 4],
-    ],
+        ],
     "Mia": [
         [29, 173, 317, 462, 606, 751],
         [23, 90, 146, 190, 235, 280],
@@ -70,7 +70,7 @@ Goal_Values = {
         [5, 37, 68, 100, 131, 163],
         [7, 80, 152, 224, 296, 369],
         [5, 5, 5, 5, 5, 5],
-    ],
+        ],
     "Felix": [
         [32, 187, 342, 498, 654, 810],
         [19, 78, 127, 166, 205, 244],
@@ -78,7 +78,7 @@ Goal_Values = {
         [6, 38, 70, 103, 135, 168],
         [7, 83, 158, 232, 307, 382],
         [2, 2, 2, 2, 2, 2],
-    ],
+        ],
     "Jenna": [
         [29, 177, 326, 474, 622, 770],
         [21, 85, 138, 180, 223, 265],
@@ -86,7 +86,7 @@ Goal_Values = {
         [5, 37, 69, 101, 132, 165],
         [8, 85, 162, 238, 315, 392],
         [4, 4, 4, 4, 4, 4],
-    ],
+        ],
     "Sheba": [
         [28, 169, 311, 452, 593, 735],
         [24, 91, 148, 193, 238, 284],
@@ -94,7 +94,7 @@ Goal_Values = {
         [4, 36, 66, 98, 128, 159],
         [10, 88, 168, 248, 328, 407],
         [5, 5, 5, 5, 5, 5],
-    ],
+        ],
     "Piers": [
         [30, 184, 337, 491, 644, 798],
         [19, 79, 129, 168, 208, 248],
@@ -102,7 +102,7 @@ Goal_Values = {
         [7, 39, 72, 106, 139, 173],
         [6, 78, 148, 218, 289, 359],
         [3, 3, 3, 3, 3, 3],
-    ],
+        ],
 }
 
 LevelUps = {
@@ -207,10 +207,6 @@ def Check_GRN(g_count):
     else: return False, g_count, found_useful
 
 
-
-Successes = []
-Checked = set()
-
 def getSuccesses(g_count, depth, path=""):
     global Successes, Checked
     if g_count in Checked: return
@@ -225,24 +221,30 @@ def getSuccesses(g_count, depth, path=""):
 # end #
 
 
-import traceback
+import sys, time, traceback
+sys.setrecursionlimit(1100)
 
 try:
     print("Calculating...")
-    getSuccesses(INIT_COUNT, DEPTH)
-    Successes = sorted(Successes, key=lambda x: x[2])
-    stat_names = ["HP", "PP", "ATK", "DEF", "AGI", "LCK"]
+    init_time = time.time()
+    Successes = []
+    Checked = set()
+    getSuccesses(INIT_COUNT, DEPTH)  # This does all the searching; updates Successes and Checked lists
+    Successes = sorted(Successes, key=lambda x: x[2])  # Sorts the entries by g_count
 
-    with open(OUTPUTFILE, "w") as f:
+    with open(OUTPUTFILE, "w") as f:  # Writes and formats data
+        stat_names = ["HP", "PP", "ATK", "DEF", "AGI", "LCK"]
         for path, stats, g_count, found_useful in Successes:
-            s = path + ":\n"
+            f.write(path + ":\n")
             for name, stat_list in stats_of_interest.items():
                 for stat in stat_list:
-                    s += f"  {name[:2]} {stat_names[stat]}: {stats[name][stat]},"
-            f.write(s + "\n")
-            f.write(f"  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {found_useful}\n")
+                    f.write(f"  {name[:2]} {stat_names[stat]}: {stats[name][stat]},")
+            f.write(f"\n  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {found_useful}\n\n")
 
 except Exception as e:
     print(traceback.format_exc())
 else:
-    print(f"Completed search at depth {DEPTH}\nOutputted successfully to {OUTPUTFILE}")
+    print(f"""\
+    Completed search at depth {DEPTH}
+    Elapsed time: {time.time() - init_time}
+    Outputted successfully to {OUTPUTFILE}""")
