@@ -3,10 +3,24 @@
 INIT_COUNT = 2254
 DEPTH = 30
 OUTPUTFILE = "NameClears_Output.txt"
-required = {"Dew", "Zephyr", "Kite", "Ground", "Granite", "Spritz", "Tonic", "Flash"}
-useful = {"Scorch", "Forge", "Torch", "Squall"}
-min_elem_counts = {"Mercury": 5, "Jupiter": 5}
-stats_of_interest = {"Isaac": [2], "Ivan": [4], "Felix": [2, 4], "Jenna": [2, 4], "Sheba": [1, 4]}
+required_djinn = {}    #Example: {"Dew", "Flash", "Granite"}
+min_elem_counts = {}   #Example: {"Mercury": 5, "Jupiter": 5}
+displayed_djinn = {}
+
+# "Name": [HP, PP, ATK, DEF, AGI, LCK],
+required_stats = {
+    "Isaac": [0, 0, 122, 0, 0, 0],
+    "Felix": [0, 0, 32, 0, 27, 0],
+    "Jenna": [0, 0, 0, 0, 28, 0],
+    "Sheba": [0, 42, 0, 0, 30, 0],
+}
+# "Name": [positionlist],
+displayed_stats = {
+    "Isaac": [2],
+    "Felix": [2, 4],
+    "Jenna": [4],
+    "Sheba": [1, 4],
+}
 
 # end #
 
@@ -173,14 +187,10 @@ DjinnPercents = [
 
 
 def Check_GRN(g_count):
-    global Djinn, DjinnPercents, Elements, required, useful, min_elem_counts
+    global Djinn, DjinnPercents, Elements, required_djinn, min_elem_counts
 
     g_value = findValue(g_count) & 0xFFFFFF
     CurrentDjinn = {"Flint", "Fizz"}
-    required_len = len(required)
-    other_tests = True
-    found_useful = set()
-
     DjinnCounts = [1,1,0,0]
     djinn_to_add = 16
 
@@ -199,21 +209,27 @@ def Check_GRN(g_count):
                 CurrentDjinn.add(name)
                 DjinnCounts[element] += 1
                 djinn_to_add -= 1
-                if name in required: required_len -= 1
-                if name in useful: found_useful.add(name)
 
-    for k,v in min_elem_counts.items(): other_tests = other_tests & (DjinnCounts[Elements[k]] >= v)
-    if other_tests and not required_len: return True, g_count, found_useful
-    else: return False, g_count, found_useful
+    required_test, count_test, stat_test = True, True, True
+    for name in required_djinn: required_test &= (name in CurrentDjinn)
+    for k,v in min_elem_counts.items(): count_test &= (DjinnCounts[Elements[k]] >= v)
+
+    return (required_test and count_test), g_count, CurrentDjinn
 
 
 def getSuccesses(g_count, depth, path=""):
     global Successes, Checked
     if g_count in Checked: return
     else: Checked.add(g_count)
-    test, new_count, found_useful = Check_GRN(g_count)
+    test, new_count, djinn = Check_GRN(g_count)
     if test:
-        Successes.append([path, Get_Stats(g_count - 1126), g_count, found_useful])
+        # check stat requirements
+        stats = Get_Stats(g_count - 1126)
+        for name in required_stats.keys():
+            for stat in range(6):
+                test &= (stats[name][stat] >= required_stats[name][stat])
+        if test:
+            Successes.append([path, Get_Stats(g_count - 1126), g_count, djinn])
     if depth > 0: 
         getSuccesses(g_count + 1126, depth-1, path + "F")
         getSuccesses(new_count + 1126, depth-1, path + "I")
@@ -234,12 +250,15 @@ try:
 
     with open(OUTPUTFILE, "w") as f:  # Writes and formats data
         stat_names = ["HP", "PP", "ATK", "DEF", "AGI", "LCK"]
-        for path, stats, g_count, found_useful in Successes:
+        for path, stats, g_count, djinn in Successes:
             f.write(path + ":\n")
-            for name, stat_list in stats_of_interest.items():
+            for name, stat_list in displayed_stats.items():
                 for stat in stat_list:
                     f.write(f"  {name[:2]} {stat_names[stat]}: {stats[name][stat]},")
-            f.write(f"\n  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {found_useful}\n\n")
+            found_useful = set()
+            for name in displayed_djinn:
+                if name in djinn: found_useful.add(name)
+            f.write(f"\n  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {found_useful or ''}\n\n")
 
 except Exception as e:
     print(traceback.format_exc())
