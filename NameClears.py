@@ -3,18 +3,18 @@
 INIT_COUNT = 2254
 DEPTH = 30
 OUTPUTFILE = "NameClears_Output.txt"
-required_djinn = {}    #Example: {"Dew", "Flash", "Granite"}
-min_elem_counts = {}   #Example: {"Mercury": 5, "Jupiter": 5}
-displayed_djinn = {}
+required_djinn = {}    #Syntax : {"Dew", "Flash", "Granite"}
+displayed_djinn = {}   #Syntax : {"Dew", "Flash", "Granite"}
+min_elem_counts = {}   #Syntax : {"Mercury": 5, "Jupiter": 5}
 
-# "Name": [HP, PP, ATK, DEF, AGI, LCK],
+#Syntax : "Name": [HP, PP, ATK, DEF, AGI, LCK],
 required_stats = {
     "Isaac": [0, 0, 122, 0, 0, 0],
     "Felix": [0, 0, 32, 0, 27, 0],
     "Jenna": [0, 0, 0, 0, 28, 0],
     "Sheba": [0, 42, 0, 0, 30, 0],
 }
-# "Name": [positionlist],
+#Syntax : "Name": [positionlist],
 displayed_stats = {
     "Isaac": [2],
     "Felix": [2, 4],
@@ -186,12 +186,12 @@ DjinnPercents = [
 ]
 
 
-def Check_GRN(g_count):
-    global Djinn, DjinnPercents, Elements, required_djinn, min_elem_counts
+def Get_Djinn(g_count):
+    global Djinn, DjinnPercents
 
     g_value = findValue(g_count) & 0xFFFFFF
     CurrentDjinn = {"Flint", "Fizz"}
-    DjinnCounts = [1,1,0,0]
+    ElemCounts = [1,1,0,0]
     djinn_to_add = 16
 
     def grn():
@@ -204,32 +204,24 @@ def Check_GRN(g_count):
         element = grn()*4 >> 16
         index = grn()*7 >> 16
         name = Djinn[element][index]
-        if DjinnCounts[element] == min(DjinnCounts) and name not in CurrentDjinn:
+        if ElemCounts[element] == min(ElemCounts) and name not in CurrentDjinn:
             if grn()*100 >> 16 < DjinnPercents[element][index]:
                 CurrentDjinn.add(name)
-                DjinnCounts[element] += 1
+                ElemCounts[element] += 1
                 djinn_to_add -= 1
 
-    required_test, count_test, stat_test = True, True, True
-    for name in required_djinn: required_test &= (name in CurrentDjinn)
-    for k,v in min_elem_counts.items(): count_test &= (DjinnCounts[Elements[k]] >= v)
-
-    return (required_test and count_test), g_count, CurrentDjinn
+    return CurrentDjinn, ElemCounts, g_count
 
 
 def getSuccesses(g_count, depth, path=""):
-    global Successes, Checked
+    global Successes, Checked, Elements, required_djinn, displayed_djinn
     if g_count in Checked: return
     else: Checked.add(g_count)
-    test, new_count, djinn = Check_GRN(g_count)
-    if test:
-        # check stat requirements
+    djinn, elem_counts, new_count = Get_Djinn(g_count)
+    if required_djinn.issubset(djinn) and all(elem_counts[Elements[k]] >= v for k, v in min_elem_counts.items()):
         stats = Get_Stats(g_count - 1126)
-        for name in required_stats.keys():
-            for stat in range(6):
-                test &= (stats[name][stat] >= required_stats[name][stat])
-        if test:
-            Successes.append([path, Get_Stats(g_count - 1126), g_count, djinn])
+        if all(stats[name][i] >= required_stats[name][i] for name in required_stats for i in range(6)):
+            Successes.append([path, stats, g_count, djinn])
     if depth > 0: 
         getSuccesses(g_count + 1126, depth-1, path + "F")
         getSuccesses(new_count + 1126, depth-1, path + "I")
@@ -239,6 +231,9 @@ def getSuccesses(g_count, depth, path=""):
 
 import sys, time, traceback
 sys.setrecursionlimit(1100)
+
+# Typecast to sets in case the user tries '{}' to make an empty set
+required_djinn, displayed_djinn = set(required_djinn), set(displayed_djinn)
 
 try:
     print("Calculating...")
@@ -255,10 +250,7 @@ try:
             for name, stat_list in displayed_stats.items():
                 for stat in stat_list:
                     f.write(f"  {name[:2]} {stat_names[stat]}: {stats[name][stat]},")
-            found_useful = set()
-            for name in displayed_djinn:
-                if name in djinn: found_useful.add(name)
-            f.write(f"\n  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {found_useful or ''}\n\n")
+            f.write(f"\n  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {djinn & displayed_djinn or ''}\n\n")
 
 except Exception as e:
     print(traceback.format_exc())
