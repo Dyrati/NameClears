@@ -134,16 +134,7 @@ LevelUps = {
 def Get_Stats(g_count):
 
     g_value = findValue(g_count)
-    PartyStats = {
-        "Isaac": [],
-        "Garet": [],
-        "Ivan": [],
-        "Mia": [],
-        "Felix": [],
-        "Jenna": [],
-        "Sheba": [],
-        "Piers": [],
-    }
+    PartyStats = {}
 
     def grn():
         nonlocal g_value, g_count
@@ -151,12 +142,12 @@ def Get_Stats(g_count):
         g_value = (g_value * 0xc64e6d + 0x3039) & 0xFFFFFF
         return (g_value >> 8) & 0xFFFF
 
-    for name in PartyStats.keys():
-        PartyStats[name] = list(next(zip(*Goal_Values[name])))
+    for name, statlist in Goal_Values.items():
+        PartyStats[name] = [statlist[i][0] for i in range(6)]
         for level in range(LevelUps[name]):
             level_index = (level+1) // 20
             for stat in range(6):
-                goals = Goal_Values[name][stat]
+                goals = statlist[stat]
                 difference = goals[level_index + 1] - goals[level_index]
                 PartyStats[name][stat] += (difference + (grn()*20 >> 16)) // 20
     
