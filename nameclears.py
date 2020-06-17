@@ -2,30 +2,37 @@
 
 INIT_COUNT = 2254
 DEPTH = 30
-OUTPUTFILE = "NameClears_Output.txt"
-required_djinn = {}    #Syntax : {"Dew", "Flash", "Granite"}
-displayed_djinn = {}   #Syntax : {"Dew", "Flash", "Granite"}
-min_elem_counts = {}   #Syntax : {"Mercury": 5, "Jupiter": 5}
+OUTPUTFILE = "nameclears_output.txt"
 
-#Syntax : "Name": [HP, PP, ATK, DEF, AGI, LCK],
-required_stats = {
+#All names must be spelled correctly and the first letter must be uppercase
+REQUIRED_DJINN = {}    # Syntax : {"Dew", "Flash", "Granite"}
+DISPLAYED_DJINN = {}   # Syntax : {"Dew", "Flash", "Granite"}
+MIN_ELEM_COUNTS = {}   # Syntax : {"Mercury": 5, "Jupiter": 5}
+PASSWORD = False       # Set to True to for bronze password runs
+
+# Syntax : "Name": [HP, PP, ATK, DEF, AGI, LCK],
+REQUIRED_STATS = {
     "Isaac": [0, 0, 122, 0, 0, 0],
     "Felix": [0, 0, 32, 0, 27, 0],
     "Jenna": [0, 0, 0, 0, 28, 0],
     "Sheba": [0, 42, 0, 0, 30, 0],
 }
-#Syntax : "Name": [positionlist],
-displayed_stats = {
-    "Isaac": [2],
-    "Felix": [2, 4],
-    "Jenna": [4],
-    "Sheba": [1, 4],
+
+# Syntax : "Name": [HP, PP, ATK, DEF, AGI, LCK],
+# Use 1 for true and 0 for false
+DISPLAYED_STATS = {
+    "Isaac": [0, 0, 1, 0, 0, 0],
+    "Felix": [0, 0, 1, 0, 1, 0],
+    "Jenna": [0, 0, 0, 0, 1, 0],
+    "Sheba": [0, 1, 0, 0, 1, 0],
 }
 
-# end #
+# end of modifiable region #
 
 
-def constructRNlist(multiplier, increment):
+# RNG solving functions #
+
+def construct_RN_list(multiplier, increment):
     multList = [multiplier]
     incList = [increment]
     for i in range(31):
@@ -33,13 +40,13 @@ def constructRNlist(multiplier, increment):
         incList.append((multList[i]*incList[i]+incList[i]) & 0xFFFFFFFF)
     return multList,incList
 
-def findValue(count, initValue=0):
+def find_value(count, initValue=0):
     for i in range(32):
         if (count >> i) & 1:
             initValue = (initValue*multipliers[i] + increments[i]) & 0xFFFFFFFF
     return initValue
 
-def findCount(value):
+def find_count(value):
     advances = 0
     for i in range(32):
         if value & 2**i:
@@ -47,10 +54,13 @@ def findCount(value):
             advances += 2**i
     return -advances & 0xFFFFFFFF
 
-multipliers,increments = constructRNlist(0x41c64e6d, 0x3039)
+multipliers,increments = construct_RN_list(0x41c64e6d, 0x3039)
 
 
-# This section is for calculating stats #
+# Stat Calculation #
+
+Party1 = {"Isaac", "Garet", "Ivan", "Mia"}
+Party2 = {"Felix", "Jenna", "Sheba", "Piers"}
 
 Goal_Values = {
     "Isaac": [
@@ -122,8 +132,8 @@ Goal_Values = {
 LevelUps = {
     "Isaac": 28,
     "Garet": 28,
-    "Ivan": 28,
-    "Mia": 28,
+    "Ivan" : 28,
+    "Mia"  : 28,
     "Felix": 5,
     "Jenna": 5,
     "Sheba": 5,
@@ -131,9 +141,9 @@ LevelUps = {
 }
 
 
-def Get_Stats(g_count):
+def get_stats(g_count):
 
-    g_value = findValue(g_count)
+    g_value = find_value(g_count)
     PartyStats = {}
 
     def grn():
@@ -153,10 +163,8 @@ def Get_Stats(g_count):
     
     return PartyStats
 
-# end #
 
-
-# This section is for calculating Djinn #
+# Djinn Calculation #
 
 Djinn = [
     ["Flint","Granite","Quartz","Vine","Sap","Ground","Bane","Echo","Iron","Steel","Mud","Flower","Meld","Petra","Salt","Geode","Mold","Crystal",],
@@ -177,12 +185,12 @@ DjinnPercents = [
 ]
 
 
-def Get_Djinn(g_count):
+def get_djinn(g_count):
     global Djinn, DjinnPercents
 
-    g_value = findValue(g_count) & 0xFFFFFF
-    CurrentDjinn = {"Flint", "Fizz"}
-    ElemCounts = [1,1,0,0]
+    g_value = find_value(g_count) & 0xFFFFFF
+    current_djinn = {"Flint", "Fizz"}
+    elem_counts = [1,1,0,0]
     djinn_to_add = 16
 
     def grn():
@@ -195,53 +203,65 @@ def Get_Djinn(g_count):
         element = grn()*4 >> 16
         index = grn()*7 >> 16
         name = Djinn[element][index]
-        if ElemCounts[element] == min(ElemCounts) and name not in CurrentDjinn:
+        if elem_counts[element] == min(elem_counts) and name not in current_djinn:
             if grn()*100 >> 16 < DjinnPercents[element][index]:
-                CurrentDjinn.add(name)
-                ElemCounts[element] += 1
+                current_djinn.add(name)
+                elem_counts[element] += 1
                 djinn_to_add -= 1
 
-    return CurrentDjinn, ElemCounts, g_count
+    return current_djinn, elem_counts, g_count
 
 
-def getSuccesses(g_count, depth, path=""):
-    global Successes, Checked, Elements, required_djinn, displayed_djinn
-    if g_count in Checked: return
-    else: Checked.add(g_count)
-    djinn, elem_counts, new_count = Get_Djinn(g_count)
-    if required_djinn.issubset(djinn) and all(elem_counts[Elements[k]] >= v for k, v in min_elem_counts.items()):
-        stats = Get_Stats(g_count - 1126)
-        if all(stats[name][i] >= required_stats[name][i] for name in required_stats for i in range(6)):
+# Recursive pathfinding function
+def get_successes(g_count, depth, path=""):
+    global Successes, Checked, Elements, REQUIRED_DJINN, DISPLAYED_DJINN, Party1, Party2
+    if g_count in Checked: 
+        return
+    else: 
+        Checked.add(g_count)
+    djinn, elem_counts, new_count = get_djinn(g_count)
+    if REQUIRED_DJINN.issubset(djinn) and all(elem_counts[Elements[k]] >= v for k, v in MIN_ELEM_COUNTS.items()):
+        stats = get_stats(g_count - 1126)
+        # Account for asynchronous stat calculation for bronze password runs
+        if PASSWORD:
+            if all(stats[name][i] >= REQUIRED_STATS[name][i] for name in REQUIRED_STATS.keys() & Party2 for i in range(6)):
+                init_stats = stats.copy()
+                p_clears = 0
+                while p_clears < depth:
+                    stats = get_stats(g_count + (p_clears+1)*1126)
+                    if all(stats[name][i] >= REQUIRED_STATS[name][i] for name in REQUIRED_STATS.keys() & Party1 for i in range(6)):
+                        for name in Party2: stats[name] = init_stats[name]
+                        Successes.append([f"{path} + P*{p_clears}", stats, g_count + (p_clears+1)*1126, djinn])
+                    p_clears += 1
+        elif all(stats[name][i] >= REQUIRED_STATS[name][i] for name in REQUIRED_STATS for i in range(6)):
             Successes.append([path, stats, g_count, djinn])
     if depth > 0: 
-        getSuccesses(g_count + 1126, depth-1, path + "F")
-        getSuccesses(new_count + 1126, depth-1, path + "I")
+        get_successes(g_count + 1126, depth-1, path + "F")
+        get_successes(new_count + 1126, depth-1, path + "I")
 
-# end #
 
 
 import sys, time, traceback
 sys.setrecursionlimit(1100)
 
 # Typecast to sets in case the user tries '{}' to make an empty set
-required_djinn, displayed_djinn = set(required_djinn), set(displayed_djinn)
+REQUIRED_DJINN, DISPLAYED_DJINN = set(REQUIRED_DJINN), set(DISPLAYED_DJINN)
 
 try:
     print("Calculating...")
     init_time = time.time()
     Successes = []
     Checked = set()
-    getSuccesses(INIT_COUNT, DEPTH)  # This does all the searching; updates Successes and Checked lists
+    get_successes(INIT_COUNT, DEPTH)  # This does all the searching; updates Successes and Checked lists
     Successes = sorted(Successes, key=lambda x: x[2])  # Sorts the entries by g_count
 
     with open(OUTPUTFILE, "w") as f:  # Writes and formats data
-        stat_names = ["HP", "PP", "ATK", "DEF", "AGI", "LCK"]
         for path, stats, g_count, djinn in Successes:
             f.write(path + ":\n")
-            for name, stat_list in displayed_stats.items():
-                for stat in stat_list:
-                    f.write(f"  {name[:2]} {stat_names[stat]}: {stats[name][stat]},")
-            f.write(f"\n  GRN: 0x{findValue(g_count):0>8X}  Gcount: {g_count}\n  Other: {djinn & displayed_djinn or ''}\n\n")
+            for name, flag_list in DISPLAYED_STATS.items():
+                for flag, stat_type, stat in zip(flag_list, ["HP", "PP", "ATK", "DEF", "AGI", "LCK"], stats[name]):
+                    if flag: f.write(f"  {name[:2]} {stat_type}: {stat},")
+            f.write(f"\n  GRN: 0x{find_value(g_count):0>8X}  Gcount: {g_count}\n  Other: {djinn & DISPLAYED_DJINN or ''}\n\n")
 
 except Exception as e:
     print(traceback.format_exc())
